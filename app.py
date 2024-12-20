@@ -17,6 +17,9 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
+# تعيين المنطقة الزمنية للسعودية
+TIMEZONE = pytz.timezone('Asia/Riyadh')
+
 # إعدادات قاعدة البيانات
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
@@ -64,7 +67,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(TIMEZONE))
     due_date = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='pending')
     priority = db.Column(db.String(20))
@@ -73,14 +76,18 @@ class Task(db.Model):
     reminders = db.relationship('TaskReminder', backref='task')
 
     def format_created_at(self):
-        return self.created_at.strftime('%Y/%m/%d %H:%M:%S')
+        # تحويل التوقيت إلى المنطقة الزمنية للسعودية
+        local_time = self.created_at.astimezone(TIMEZONE)
+        return local_time.strftime('%Y/%m/%d %H:%M:%S')
 
     def format_due_date(self):
         if not self.due_date:
             return "لا يوجد موعد"
         
-        now = datetime.now()
-        time_left = self.due_date - now
+        now = datetime.now(TIMEZONE)
+        # تحويل due_date إلى نفس المنطقة الزمنية
+        due_date = self.due_date.astimezone(TIMEZONE)
+        time_left = due_date - now
         
         if time_left.total_seconds() <= 0:
             return "انتهى الوقت"
@@ -157,7 +164,7 @@ def create_task_reminders(task):
         for reminder_type, time_before in reminders:
             reminder_time = task.due_date - time_before
             # إنشاء تنبيه فقط إذا كان الوقت لم يمر بعد
-            if reminder_time > datetime.now():
+            if reminder_time > datetime.now(TIMEZONE):
                 reminder = TaskReminder(
                     task_id=task.id,
                     reminder_type=reminder_type,
@@ -191,18 +198,18 @@ def check_and_send_reminders():
     """التحقق من التنبيهات وإرسالها"""
     try:
         # البحث عن التنبيهات التي حان وقتها ولم يتم إرسالها بعد
-        current_time = datetime.now()
+        current_time = datetime.now(TIMEZONE)
         due_reminders = TaskReminder.query.filter(
             TaskReminder.reminder_time <= current_time,
             TaskReminder.sent == False
         ).all()
-        
+
         for reminder in due_reminders:
-            if reminder.task.status != 'completed':  # إرسال التنبيه فقط إذا لم تكتمل المهمة
-                send_reminder_notification(reminder)
-    
+            if send_reminder_notification(reminder):
+                reminder.sent = True
+                db.session.commit()
     except Exception as e:
-        app.logger.error(f'خطأ في فحص التنبيهات: {str(e)}')
+        app.logger.error(f'خطأ في إرسال التنبيهات: {str(e)}')
 
 # حذف وإعادة إنشاء قاعدة البيانات
 with app.app_context():
@@ -327,80 +334,89 @@ def profile():
 @app.route('/')
 @login_required
 def index():
-    now = datetime.now()
+    now = datetime.now(TIMEZONE)
     tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.created_at.desc()).all()
     return render_template('index.html', tasks=tasks, now=now)
 
-@app.route('/add_task', methods=['POST'])
+@app.route('/add_task', methods=['GET', 'POST'])
 @login_required
 def add_task():
-    title = request.form.get('title')
-    description = request.form.get('description')
-    due_date_str = request.form.get('due_date')
-    priority = request.form.get('priority')
-    
-    # معالجة التاريخ
-    due_date = None
-    if due_date_str:
-        due_date = datetime.strptime(due_date_str, '%Y-%m-%dT%H:%M')
-    
-    # معالجة المرفق
-    attachment_filename = None
-    if 'attachment' in request.files:
-        file = request.files['attachment']
-        if file and file.filename:
-            if not allowed_file(file.filename):
-                flash('نوع الملف غير مسموح به')
-                return redirect(url_for('index'))
-            
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-            filename = timestamp + filename
-            
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        priority = request.form.get('priority')
+        
+        # تحويل التاريخ والوقت إلى المنطقة الزمنية للسعودية
+        due_date_str = request.form.get('due_date')
+        if due_date_str:
             try:
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(file_path)
-                if os.path.exists(file_path):
-                    attachment_filename = filename
-                else:
+                # تحويل التاريخ والوقت المدخل إلى كائن datetime
+                due_date = datetime.strptime(due_date_str, '%Y-%m-%dT%H:%M')
+                # إضافة معلومات المنطقة الزمنية
+                due_date = TIMEZONE.localize(due_date)
+            except ValueError:
+                flash('صيغة التاريخ غير صحيحة', 'error')
+                return redirect(url_for('index'))
+        else:
+            due_date = None
+        
+        # معالجة المرفق
+        attachment_filename = None
+        if 'attachment' in request.files:
+            file = request.files['attachment']
+            if file and file.filename:
+                if not allowed_file(file.filename):
+                    flash('نوع الملف غير مسموح به')
+                    return redirect(url_for('index'))
+                
+                filename = secure_filename(file.filename)
+                timestamp = datetime.now(TIMEZONE).strftime('%Y%m%d_%H%M%S_')
+                filename = timestamp + filename
+                
+                try:
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(file_path)
+                    if os.path.exists(file_path):
+                        attachment_filename = filename
+                    else:
+                        flash('حدث خطأ أثناء حفظ الملف')
+                        return redirect(url_for('index'))
+                except Exception as e:
+                    app.logger.error(f'خطأ في حفظ الملف: {str(e)}')
                     flash('حدث خطأ أثناء حفظ الملف')
                     return redirect(url_for('index'))
-            except Exception as e:
-                app.logger.error(f'خطأ في حفظ الملف: {str(e)}')
-                flash('حدث خطأ أثناء حفظ الملف')
-                return redirect(url_for('index'))
 
-    # إنشاء المهمة
-    task = Task(
-        title=title,
-        description=description,
-        due_date=due_date,
-        priority=priority,
-        attachment=attachment_filename,
-        user_id=current_user.id
-    )
-    
-    try:
-        db.session.add(task)
-        db.session.commit()
+        # إنشاء المهمة
+        task = Task(
+            title=title,
+            description=description,
+            due_date=due_date,
+            priority=priority,
+            attachment=attachment_filename,
+            user_id=current_user.id
+        )
         
-        # إنشاء التنبيهات للمهمة
-        create_task_reminders(task)
+        try:
+            db.session.add(task)
+            db.session.commit()
+            
+            # إنشاء التنبيهات للمهمة
+            create_task_reminders(task)
+            
+            # إرسال إشعار بالبريد
+            send_task_notification(task)
+            
+            flash('تم إضافة المهمة بنجاح')
+        except Exception as e:
+            app.logger.error(f'خطأ في حفظ المهمة: {str(e)}')
+            flash('حدث خطأ أثناء حفظ المهمة')
+            if attachment_filename:
+                try:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], attachment_filename))
+                except:
+                    pass
         
-        # إرسال إشعار بالبريد
-        send_task_notification(task)
-        
-        flash('تم إضافة المهمة بنجاح')
-    except Exception as e:
-        app.logger.error(f'خطأ في حفظ المهمة: {str(e)}')
-        flash('حدث خطأ أثناء حفظ المهمة')
-        if attachment_filename:
-            try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], attachment_filename))
-            except:
-                pass
-    
-    return redirect(url_for('index'))
+        return redirect(url_for('index'))
 
 @app.route('/update_status/<int:task_id>', methods=['POST'])
 @login_required
