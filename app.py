@@ -67,8 +67,8 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(TIMEZONE))
-    due_date = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(pytz.UTC))
+    due_date = db.Column(db.DateTime(timezone=True))
     status = db.Column(db.String(20), default='pending')
     priority = db.Column(db.String(20))
     attachment = db.Column(db.String(255))
@@ -77,16 +77,24 @@ class Task(db.Model):
 
     def format_created_at(self):
         # تحويل التوقيت إلى المنطقة الزمنية للسعودية
-        local_time = self.created_at.astimezone(TIMEZONE)
+        if self.created_at.tzinfo is None:
+            aware_date = pytz.UTC.localize(self.created_at)
+        else:
+            aware_date = self.created_at
+        local_time = aware_date.astimezone(TIMEZONE)
         return local_time.strftime('%Y/%m/%d %H:%M:%S')
 
     def format_due_date(self):
         if not self.due_date:
             return "لا يوجد موعد"
         
-        now = datetime.now(TIMEZONE)
-        # تحويل due_date إلى نفس المنطقة الزمنية
-        due_date = self.due_date.astimezone(TIMEZONE)
+        # تحويل الوقت الحالي والموعد النهائي إلى UTC
+        now = datetime.now(pytz.UTC)
+        if self.due_date.tzinfo is None:
+            due_date = pytz.UTC.localize(self.due_date)
+        else:
+            due_date = self.due_date
+        
         time_left = due_date - now
         
         if time_left.total_seconds() <= 0:
@@ -164,7 +172,7 @@ def create_task_reminders(task):
         for reminder_type, time_before in reminders:
             reminder_time = task.due_date - time_before
             # إنشاء تنبيه فقط إذا كان الوقت لم يمر بعد
-            if reminder_time > datetime.now(TIMEZONE):
+            if reminder_time > datetime.now(pytz.UTC):
                 reminder = TaskReminder(
                     task_id=task.id,
                     reminder_type=reminder_type,
@@ -198,7 +206,7 @@ def check_and_send_reminders():
     """التحقق من التنبيهات وإرسالها"""
     try:
         # البحث عن التنبيهات التي حان وقتها ولم يتم إرسالها بعد
-        current_time = datetime.now(TIMEZONE)
+        current_time = datetime.now(pytz.UTC)
         due_reminders = TaskReminder.query.filter(
             TaskReminder.reminder_time <= current_time,
             TaskReminder.sent == False
@@ -348,17 +356,18 @@ def add_task():
         
         # تحويل التاريخ والوقت إلى المنطقة الزمنية للسعودية
         due_date_str = request.form.get('due_date')
+        due_date = None
         if due_date_str:
             try:
-                # تحويل التاريخ والوقت المدخل إلى كائن datetime
-                due_date = datetime.strptime(due_date_str, '%Y-%m-%dT%H:%M')
-                # إضافة معلومات المنطقة الزمنية
-                due_date = TIMEZONE.localize(due_date)
-            except ValueError:
+                # تحويل التاريخ والوقت المدخل إلى كائن datetime مع المنطقة الزمنية
+                naive_date = datetime.strptime(due_date_str, '%Y-%m-%dT%H:%M')
+                due_date = TIMEZONE.localize(naive_date)
+                # تحويل إلى UTC للتخزين في قاعدة البيانات
+                due_date = due_date.astimezone(pytz.UTC)
+            except ValueError as e:
+                app.logger.error(f'خطأ في تحويل التاريخ: {str(e)}')
                 flash('صيغة التاريخ غير صحيحة', 'error')
                 return redirect(url_for('index'))
-        else:
-            due_date = None
         
         # معالجة المرفق
         attachment_filename = None
@@ -386,28 +395,31 @@ def add_task():
                     flash('حدث خطأ أثناء حفظ الملف')
                     return redirect(url_for('index'))
 
-        # إنشاء المهمة
-        task = Task(
-            title=title,
-            description=description,
-            due_date=due_date,
-            priority=priority,
-            attachment=attachment_filename,
-            user_id=current_user.id
-        )
-        
         try:
+            # إنشاء المهمة مع created_at في UTC
+            task = Task(
+                title=title,
+                description=description,
+                due_date=due_date,
+                priority=priority,
+                attachment=attachment_filename,
+                user_id=current_user.id,
+                created_at=datetime.now(pytz.UTC)
+            )
+            
             db.session.add(task)
             db.session.commit()
             
             # إنشاء التنبيهات للمهمة
-            create_task_reminders(task)
+            if due_date:
+                create_task_reminders(task)
             
             # إرسال إشعار بالبريد
             send_task_notification(task)
             
             flash('تم إضافة المهمة بنجاح')
         except Exception as e:
+            db.session.rollback()
             app.logger.error(f'خطأ في حفظ المهمة: {str(e)}')
             flash('حدث خطأ أثناء حفظ المهمة')
             if attachment_filename:
@@ -417,6 +429,8 @@ def add_task():
                     pass
         
         return redirect(url_for('index'))
+    
+    return render_template('index.html')
 
 @app.route('/update_status/<int:task_id>', methods=['POST'])
 @login_required
