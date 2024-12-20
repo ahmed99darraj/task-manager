@@ -125,33 +125,21 @@ def send_email(to_email, subject, body):
 
 def send_notification(user, message):
     """إرسال الإشعارات عبر البريد الإلكتروني فقط"""
-    return send_email(user.email, "إشعار من نظام إدارة المهام", message)
+    if user.email_notifications:
+        return send_email(user.email, "إشعار من نظام إدارة المهام", message)
+    return False
 
 def send_task_notification(task):
     """إرسال إشعار للمستخدم عن المهمة"""
-    if task.user.email_notifications:
-        try:
-            msg = Message('تم إضافة مهمة جديدة',
-                        sender=app.config['MAIL_USERNAME'],
-                        recipients=[task.user.email])
-            
-            msg.body = f'''مرحباً {task.user.username}،
-
-تم إضافة مهمة جديدة:
-العنوان: {task.title}
-الوصف: {task.description}
-الموعد النهائي: {task.format_due_date()}
-
-يمكنك عرض تفاصيل المهمة من خلال تسجيل الدخول إلى حسابك.
-
-مع تحياتنا،
-فريق إدارة المهام
-'''
-            mail.send(msg)
-            return True
-        except Exception as e:
-            app.logger.error(f'خطأ في إرسال الإشعار: {str(e)}')
-            return False
+    user = task.user
+    if user.email_notifications:
+        message = f"""
+        تم إنشاء مهمة جديدة:
+        العنوان: {task.title}
+        الوصف: {task.description}
+        تاريخ الاستحقاق: {task.format_due_date()}
+        """
+        return send_email(user.email, "مهمة جديدة - نظام إدارة المهام", message)
     return False
 
 def create_task_reminders(task):
@@ -186,44 +174,17 @@ def create_task_reminders(task):
 def send_reminder_notification(reminder):
     """إرسال تنبيه للمستخدم"""
     task = reminder.task
-    if task.user.email_notifications:
-        try:
-            # تحديد نص التنبيه حسب النوع
-            reminder_text = {
-                'week': 'أسبوع',
-                'two_days': 'يومين',
-                'five_hours': '5 ساعات',
-                'ten_minutes': '10 دقائق',
-                'one_minute': 'دقيقة واحدة'
-            }
-            
-            msg = Message(
-                f'تنبيه: باقي {reminder_text[reminder.reminder_type]} على موعد المهمة',
-                sender=app.config['MAIL_USERNAME'],
-                recipients=[task.user.email]
-            )
-            
-            msg.body = f'''مرحباً {task.user.username}،
-
-تذكير: باقي {reminder_text[reminder.reminder_type]} على موعد المهمة:
-العنوان: {task.title}
-الوصف: {task.description}
-الموعد النهائي: {task.format_due_date()}
-
-حالة المهمة: {'مكتملة' if task.status == 'completed' else 'قيد التنفيذ'}
-
-يمكنك عرض تفاصيل المهمة من خلال تسجيل الدخول إلى حسابك.
-
-مع تحياتنا،
-فريق إدارة المهام
-'''
-            mail.send(msg)
-            reminder.sent = True
-            db.session.commit()
-            return True
-        except Exception as e:
-            app.logger.error(f'خطأ في إرسال التنبيه: {str(e)}')
-            return False
+    user = task.user
+    
+    if user.email_notifications:
+        time_left = task.format_due_date()
+        message = f"""
+        تذكير بموعد المهمة:
+        العنوان: {task.title}
+        الوصف: {task.description}
+        الوقت المتبقي: {time_left}
+        """
+        return send_email(user.email, "تذكير بموعد المهمة - نظام إدارة المهام", message)
     return False
 
 def check_and_send_reminders():
