@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card mt-5">
+                <div class="card-header text-center">
+                    <h4>الملف الشخصي</h4>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages() %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-info">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <div class="user-info mb-4">
+                        <h5>معلومات الحساب</h5>
+                        <p><strong>اسم المستخدم:</strong> {{ current_user.username }}</p>
+                        <p><strong>البريد الإلكتروني:</strong> {{ current_user.email }}</p>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('profile') }}">
+                        <div class="form-group">
+                            <label for="phone">رقم الجوال</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ current_user.phone or '' }}" 
+                                   placeholder="أدخل رقم الجوال">
+                            <small class="form-text text-muted">مثال: 0501234567</small>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" 
+                                       id="email_notifications" name="email_notifications"
+                                       {% if current_user.email_notifications %}checked{% endif %}>
+                                <label class="custom-control-label" for="email_notifications">
+                                    تفعيل الإشعارات عبر البريد الإلكتروني
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">حفظ التغييرات</button>
+                        </div>
+                    </form>
+
+                    <hr>
+
+                    <div class="task-statistics mt-4">
+                        <h5>إحصائيات المهام</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6>المهام الكلية</h6>
+                                        <h4>{{ current_user.tasks|length }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h6>المهام المكتملة</h6>
+                                        <h4>{{ current_user.tasks|selectattr('status', 'equalto', 'completed')|list|length }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-warning">
+                                    <div class="card-body text-center">
+                                        <h6>المهام قيد التنفيذ</h6>
+                                        <h4>{{ current_user.tasks|selectattr('status', 'equalto', 'in_progress')|list|length }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

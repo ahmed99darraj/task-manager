@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المهام</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-tasks ml-2"></i>
+                إدارة المهام
+            </a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <span class="nav-link text-light">
+                            <i class="fas fa-user ml-1"></i>
+                            مرحباً {{ current_user.username }}
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('profile') }}">
+                            <i class="fas fa-user-cog ml-1"></i>
+                            الملف الشخصي
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt ml-1"></i>
+                            تسجيل الخروج
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">إضافة مهمة جديدة</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('add_task') }}" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label>عنوان المهمة</label>
+                                <input type="text" class="form-control" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label>الوصف</label>
+                                <textarea class="form-control" name="description" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>تاريخ الاستحقاق</label>
+                                <input type="datetime-local" class="form-control" name="due_date">
+                            </div>
+                            <div class="form-group">
+                                <label>الأولوية</label>
+                                <select class="form-control" name="priority">
+                                    <option value="low">منخفضة</option>
+                                    <option value="medium">متوسطة</option>
+                                    <option value="high">عالية</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="attachment">المرفقات</label>
+                                <div class="custom-file">
+                                    <input type="file" class="custom-file-input" id="attachment" name="attachment" accept="image/*,application/pdf">
+                                    <label class="custom-file-label" for="attachment" data-browse="استعراض">اختر ملفاً...</label>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="openCamera">
+                                        <i class="fas fa-camera ml-1"></i>
+                                        التقاط صورة
+                                    </button>
+                                </div>
+                                <!-- معاينة الصورة -->
+                                <div id="imagePreview" class="mt-2" style="display: none;">
+                                    <img id="preview" src="" alt="معاينة" style="max-width: 200px; max-height: 200px;" class="img-thumbnail">
+                                    <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="retakePhoto">
+                                        <i class="fas fa-redo ml-1"></i>
+                                        إعادة التقاط
+                                    </button>
+                                </div>
+                                <!-- كاميرا -->
+                                <div id="cameraContainer" class="mt-2" style="display: none;">
+                                    <video id="camera" style="width: 100%; max-width: 400px;" autoplay playsinline></video>
+                                    <canvas id="canvas" style="display: none;"></canvas>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-primary btn-sm" id="capturePhoto">
+                                            <i class="fas fa-camera ml-1"></i>
+                                            التقاط
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="closeCamera">
+                                            <i class="fas fa-times ml-1"></i>
+                                            إغلاق
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">
+                                <i class="fas fa-plus ml-1"></i>
+                                إضافة المهمة
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">قائمة المهام</h5>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages() %}
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-info">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <div class="task-list">
+                            {% for task in tasks %}
+                                <div class="task-item priority-{{ task.priority }} {% if task.status == 'completed' %}status-completed{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h5 class="task-title">{{ task.title }}</h5>
+                                            <p class="task-description">{{ task.description }}</p>
+                                            <div class="task-meta">
+                                                <span class="mr-3">
+                                                    <i class="fas fa-calendar-alt ml-1"></i>
+                                                    تاريخ الإنشاء: {{ task.format_created_at() }}
+                                                </span>
+                                                {% if task.due_date %}
+                                                    <span class="mr-3 {% if task.due_date < now %}overdue{% endif %}">
+                                                        <i class="fas fa-clock ml-1"></i>
+                                                        {{ task.format_due_date() }}
+                                                    </span>
+                                                    <div class="task-timer" data-due-date="{{ task.due_date }}" data-created-date="{{ task.created_at }}"></div>
+                                                    <div class="time-progress">
+                                                        <div class="time-progress-bar" data-due-date="{{ task.due_date }}"></div>
+                                                        <div class="time-progress-text"></div>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            {% if task.attachment %}
+                                                <div class="task-attachment mt-3">
+                                                    <div class="attachment-preview">
+                                                        {% if task.attachment.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+                                                            <img src="{{ url_for('static', filename='uploads/' + task.attachment) }}" alt="المرفق" class="img-thumbnail">
+                                                        {% elif task.attachment.lower().endswith('.pdf') %}
+                                                            <div class="pdf-preview">
+                                                                <i class="fas fa-file-pdf fa-3x text-danger"></i>
+                                                                <span class="filename">{{ task.attachment }}</span>
+                                                            </div>
+                                                        {% else %}
+                                                            <div class="file-preview">
+                                                                <i class="fas fa-file fa-3x text-primary"></i>
+                                                                <span class="filename">{{ task.attachment }}</span>
+                                                            </div>
+                                                        {% endif %}
+                                                        <a href="{{ url_for('static', filename='uploads/' + task.attachment) }}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                                                            <i class="fas fa-download ml-1"></i>
+                                                            تحميل المرفق
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="task-actions">
+                                            <form method="POST" action="{{ url_for('update_status', task_id=task.id) }}" class="d-inline">
+                                                <select name="status" class="form-control form-control-sm d-inline-block w-auto" onchange="this.form.submit()">
+                                                    <option value="pending" {% if task.status == 'pending' %}selected{% endif %}>قيد الانتظار</option>
+                                                    <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>قيد التنفيذ</option>
+                                                    <option value="completed" {% if task.status == 'completed' %}selected{% endif %}>مكتملة</option>
+                                                </select>
+                                            </form>
+                                            <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline">
+                                                <button type="submit" class="btn btn-danger btn-sm mr-2" onclick="return confirm('هل أنت متأكد من حذف هذه المهمة؟')">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">لا توجد مهام حالياً</p>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.rawgit.com/kimmobrunfeldt/progressbar.js/1.1.0/dist/progressbar.min.js"></script>
+    <script>
+        // تحديث اسم الملف المرفق
+        $('.custom-file-input').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').html(fileName);
+        });
+
+        // إنشاء المؤقتات الدائرية
+        document.querySelectorAll('.task-timer').forEach(function(container) {
+            const dueDate = new Date(container.dataset.dueDate);
+            const now = new Date();
+            const timeLeft = dueDate - now;
+            
+            // حساب النسبة المئوية للوقت المتبقي (24 ساعة كحد أقصى)
+            const totalDuration = 24 * 60 * 60 * 1000; // 24 ساعة بالميلي ثانية
+            let progress = 1 - (timeLeft / totalDuration);
+            
+            // التأكد من أن النسبة بين 0 و 1
+            progress = Math.min(Math.max(progress, 0), 1);
+
+            // تحديد مستوى التقدم
+            let progressLevel;
+            if (progress < 0.5) {
+                progressLevel = 'high';
+            } else if (progress < 0.75) {
+                progressLevel = 'medium';
+            } else {
+                progressLevel = 'low';
+            }
+            container.setAttribute('data-progress', progressLevel);
+
+            // إنشاء المؤقت الدائري
+            const bar = new ProgressBar.Circle(container, {
+                strokeWidth: 6,
+                easing: 'easeInOut',
+                duration: 1400,
+                color: progress >= 1 ? '#e74c3c' : 
+                       progressLevel === 'high' ? '#2ecc71' :
+                       progressLevel === 'medium' ? '#f1c40f' : '#e74c3c',
+                trailColor: '#f0f0f0',
+                trailWidth: 1,
+                svgStyle: null,
+                text: {
+                    style: {
+                        color: '#333',
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        padding: 0,
+                        margin: 0,
+                        transform: 'translate(-50%, -50%)'
+                    }
+                }
+            });
+
+            // تحديث النص والتقدم
+            bar.animate(progress);
+            
+            // تحديث النص كل ثانية
+            function updateTimer() {
+                const now = new Date();
+                const timeLeft = dueDate - now;
+                
+                if (timeLeft <= 0) {
+                    bar.setText('انتهى');
+                    container.setAttribute('data-progress', 'low');
+                    bar.path.setAttribute('stroke', '#e74c3c');
+                    return;
+                }
+
+                // تحويل الوقت المتبقي إلى أيام وساعات
+                const totalMinutes = Math.floor(timeLeft / (1000 * 60));
+                const hours = Math.floor(totalMinutes / 60);
+                const minutes = totalMinutes % 60;
+
+                let timeText = '';
+                if (hours > 0) {
+                    timeText = `${hours}س ${minutes}د`;
+                } else {
+                    timeText = `${minutes}د`;
+                }
+
+                // تحديث لون المؤقت حسب الوقت المتبقي
+                const progress = 1 - (timeLeft / totalDuration);
+                let progressLevel;
+                if (progress < 0.5) {
+                    progressLevel = 'high';
+                    bar.path.setAttribute('stroke', '#2ecc71');
+                } else if (progress < 0.75) {
+                    progressLevel = 'medium';
+                    bar.path.setAttribute('stroke', '#f1c40f');
+                } else {
+                    progressLevel = 'low';
+                    bar.path.setAttribute('stroke', '#e74c3c');
+                }
+                container.setAttribute('data-progress', progressLevel);
+
+                bar.setText(timeText);
+            }
+
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        });
+
+        // تحديث أشرطة التقدم الزمني
+        document.querySelectorAll('.time-progress-bar').forEach(function(progressBar) {
+            const dueDate = new Date(progressBar.dataset.dueDate);
+            
+            function updateProgress() {
+                const now = new Date();
+                const timeLeft = dueDate - now;
+                
+                // حساب النسبة المئوية للوقت المتبقي
+                const totalDuration = dueDate - now + (1000 * 60 * 5); // إضافة 5 دقائق للتأكد من أن الشريط يبدأ من 100%
+                const progress = Math.max(0, timeLeft / totalDuration);
+                const percentage = Math.floor(progress * 100);
+                
+                // تحديث عرض شريط التقدم
+                progressBar.style.width = percentage + '%';
+                
+                // تحديث النص
+                const progressText = progressBar.nextElementSibling;
+                
+                if (timeLeft <= 0) {
+                    progressText.textContent = 'انتهى الوقت';
+                    progressBar.style.width = '0%';
+                    progressBar.style.background = '#e74c3c';
+                    return;
+                }
+                
+                const totalMinutes = Math.floor(timeLeft / (1000 * 60));
+                const hours = Math.floor(totalMinutes / 60);
+                const minutes = totalMinutes % 60;
+                
+                let timeText = '';
+                if (hours > 0) {
+                    timeText = `متبقي ${hours} ساعة و ${minutes} دقيقة (${percentage}%)`;
+                } else {
+                    timeText = `متبقي ${minutes} دقيقة (${percentage}%)`;
+                }
+                
+                progressText.textContent = timeText;
+                
+                // تحديث لون الشريط حسب النسبة المتبقية
+                if (percentage > 70) {
+                    progressBar.style.background = '#2ecc71';
+                } else if (percentage > 30) {
+                    progressBar.style.background = '#f1c40f';
+                } else {
+                    progressBar.style.background = '#e74c3c';
+                }
+            }
+            
+            // تحديث كل 100 مللي ثانية لحركة أكثر سلاسة
+            updateProgress();
+            setInterval(updateProgress, 100);
+        });
+
+        // كود الكاميرا
+        const openCameraBtn = document.getElementById('openCamera');
+        const closeCameraBtn = document.getElementById('closeCamera');
+        const capturePhotoBtn = document.getElementById('capturePhoto');
+        const retakePhotoBtn = document.getElementById('retakePhoto');
+        const cameraContainer = document.getElementById('cameraContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const attachmentInput = document.getElementById('attachment');
+        let stream = null;
+
+        // فتح الكاميرا
+        openCameraBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment' // استخدام الكاميرا الخلفية إذا كانت متوفرة
+                    } 
+                });
+                video.srcObject = stream;
+                cameraContainer.style.display = 'block';
+                openCameraBtn.style.display = 'none';
+            } catch (err) {
+                alert('لا يمكن الوصول إلى الكاميرا: ' + err.message);
+            }
+        });
+
+        // إغلاق الكاميرا
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                cameraContainer.style.display = 'none';
+                openCameraBtn.style.display = 'block';
+            }
+        }
+
+        closeCameraBtn.addEventListener('click', stopCamera);
+
+        // التقاط صورة
+        capturePhotoBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // تحويل الصورة إلى ملف
+            canvas.toBlob((blob) => {
+                const file = new File([blob], 'camera_photo.jpg', { type: 'image/jpeg' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                attachmentInput.files = dt.files;
+                
+                // عرض المعاينة
+                const preview = document.getElementById('preview');
+                preview.src = URL.createObjectURL(blob);
+                imagePreview.style.display = 'block';
+                
+                stopCamera();
+            }, 'image/jpeg', 0.8);
+        });
+
+        // إعادة التقاط الصورة
+        retakePhotoBtn.addEventListener('click', () => {
+            imagePreview.style.display = 'none';
+            attachmentInput.value = '';
+            openCameraBtn.click();
+        });
+
+        // تحديث اسم الملف المختار
+        attachmentInput.addEventListener('change', function() {
+            const label = this.nextElementSibling;
+            const fileName = this.files[0]?.name || 'اختر ملفاً...';
+            label.textContent = fileName;
+            
+            // إذا كان الملف صورة، عرض المعاينة
+            if (this.files[0]?.type.startsWith('image/')) {
+                const preview = document.getElementById('preview');
+                preview.src = URL.createObjectURL(this.files[0]);
+                imagePreview.style.display = 'block';
+            } else {
+                imagePreview.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

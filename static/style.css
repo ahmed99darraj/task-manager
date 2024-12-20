@@ -1,0 +1,347 @@
+/* التصميم العام */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --text-color: #333;
+    --light-bg: #f8f9fa;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--light-bg);
+    color: var(--text-color);
+}
+
+/* شريط التنقل */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background-color: var(--primary-color) !important;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+/* البطاقات */
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-header {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 10px 10px 0 0 !important;
+    padding: 15px;
+}
+
+/* النماذج */
+.form-control {
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.form-control:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* الأزرار */
+.btn {
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+/* قائمة المهام */
+.task-list {
+    margin-top: 20px;
+}
+
+.task-item {
+    background: white;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.task-title {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.task-description {
+    color: #666;
+    margin: 10px 0;
+}
+
+.task-meta {
+    font-size: 0.9rem;
+    color: #888;
+}
+
+/* المؤقت الدائري */
+.task-timer {
+    width: 60px;
+    height: 60px;
+    margin: 10px;
+    display: inline-block;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.task-timer svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.task-timer .progressbar-text {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 0.3s ease;
+}
+
+/* تدرج لون المؤقت حسب الوقت المتبقي */
+.task-timer[data-progress="high"] .progressbar-text {
+    color: #2ecc71 !important;
+}
+
+.task-timer[data-progress="medium"] .progressbar-text {
+    color: #f1c40f !important;
+}
+
+.task-timer[data-progress="low"] .progressbar-text {
+    color: #e74c3c !important;
+}
+
+/* تحسين مظهر المؤقت عند اكتمال المهمة */
+.status-completed .task-timer {
+    opacity: 0.5;
+}
+
+.status-completed .task-timer .progressbar-text {
+    text-decoration: line-through;
+}
+
+/* تحسين مظهر المؤقت عند تجاوز الموعد */
+.overdue .task-timer .progressbar-text {
+    color: #e74c3c !important;
+    font-weight: bold;
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .task-timer {
+        width: 50px;
+        height: 50px;
+        margin: 5px;
+    }
+    
+    .task-timer .progressbar-text {
+        font-size: 10px;
+    }
+}
+
+/* شريط التقدم الزمني */
+.time-progress {
+    width: 100%;
+    height: 10px;
+    background: #f0f0f0;
+    border-radius: 5px;
+    margin: 15px 0;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.time-progress-bar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    background: linear-gradient(to left, #2ecc71, #f1c40f, #e74c3c);
+    transition: all 0.1s linear;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.time-progress-text {
+    font-size: 13px;
+    color: #333;
+    margin-top: 8px;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* تحسين مظهر شريط التقدم عند اكتمال المهمة */
+.status-completed .time-progress {
+    opacity: 0.7;
+}
+
+.status-completed .time-progress-bar {
+    background: #95a5a6 !important;
+}
+
+/* تحسين مظهر شريط التقدم عند تجاوز الموعد */
+.overdue .time-progress-bar {
+    background: #e74c3c !important;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .time-progress {
+        height: 8px;
+        margin: 10px 0;
+    }
+    
+    .time-progress-text {
+        font-size: 11px;
+    }
+}
+
+/* المرفقات */
+.task-attachment {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.attachment-preview {
+    text-align: center;
+    max-width: 200px;
+}
+
+.attachment-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.pdf-preview, .file-preview {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.pdf-preview i, .file-preview i {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.filename {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    word-break: break-all;
+    margin-top: 5px;
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .attachment-preview {
+        max-width: 150px;
+    }
+}
+
+/* الأولويات */
+.priority-high {
+    border-right: 4px solid var(--accent-color);
+}
+
+.priority-medium {
+    border-right: 4px solid #f1c40f;
+}
+
+.priority-low {
+    border-right: 4px solid #2ecc71;
+}
+
+/* الحالة */
+.status-completed {
+    opacity: 0.7;
+    background-color: #f8f9fa;
+}
+
+.status-completed .task-title {
+    text-decoration: line-through;
+}
+
+/* التواريخ */
+.due-date {
+    font-weight: 500;
+    color: var(--accent-color);
+}
+
+.overdue {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+/* التجاوب مع الشاشات الصغيرة */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .card {
+        margin-bottom: 15px;
+    }
+    
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .task-item {
+        padding: 10px;
+    }
+}
